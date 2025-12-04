@@ -1,65 +1,203 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+import { useEffect, useState } from 'react';
+import { Users, Package, ShoppingCart, DollarSign, TrendingUp, AlertCircle } from 'lucide-react';
+import { customerApi, productApi, orderApi } from '@/lib/api';
+import { Customer, Product, Order } from '@/lib/types';
+
+const Dashboard = () => {
+  const [stats, setStats] = useState({
+    totalCustomers: 0,
+    totalProducts: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
+    lowStockProducts: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      const [customersRes, productsRes, ordersRes] = await Promise.all([
+        customerApi.getAll(),
+        productApi.getAll(),
+        orderApi.getAll(),
+      ]);
+
+      const customers = customersRes.data.data;
+      const products = productsRes.data.data;
+      const orders = ordersRes.data.data;
+
+      const pendingOrders = orders.filter((o: Order) => o.status === 'pending').length;
+      const completedOrders = orders.filter((o: Order) => o.status === 'completed').length;
+      const totalRevenue = orders
+        .filter((o: Order) => o.status === 'completed')
+        .reduce((sum: number, o: Order) => sum + o.final_amount, 0);
+      const lowStockProducts = products.filter((p: Product) => p.stock < 10).length;
+
+      setStats({
+        totalCustomers: customers.length,
+        totalProducts: products.length,
+        totalOrders: orders.length,
+        totalRevenue,
+        pendingOrders,
+        completedOrders,
+        lowStockProducts,
+      });
+
+      setRecentOrders(orders.slice(0, 5));
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+      setLoading(false);
+    }
+  };
+
+  const StatCard = ({ 
+    title, 
+    value, 
+    icon: Icon, 
+    color, 
+    trend 
+  }: { 
+    title: string; 
+    value: string | number; 
+    icon: any; 
+    color: string;
+    trend?: string;
+  }) => (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-gray-500 text-sm">{title}</p>
+          <p className="text-2xl font-bold mt-2">{value}</p>
+          {trend && (
+            <p className="text-green-600 text-sm mt-1 flex items-center gap-1">
+              <TrendingUp className="w-4 h-4" />
+              {trend}
+            </p>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className={`${color} p-3 rounded-full`}>
+          <Icon className="w-6 h-6 text-white" />
         </div>
-      </main>
+      </div>
     </div>
   );
-}
+
+  if (loading) {
+    return (
+      <div className="p-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title="Total Customers"
+          value={stats.totalCustomers}
+          icon={Users}
+          color="bg-blue-500"
+        />
+        <StatCard
+          title="Total Products"
+          value={stats.totalProducts}
+          icon={Package}
+          color="bg-green-500"
+        />
+        <StatCard
+          title="Total Orders"
+          value={stats.totalOrders}
+          icon={ShoppingCart}
+          color="bg-purple-500"
+        />
+        <StatCard
+          title="Total Revenue"
+          value={`$${stats.totalRevenue.toFixed(2)}`}
+          icon={DollarSign}
+          color="bg-yellow-500"
+          trend="+12% from last month"
+        />
+      </div>
+
+      {/* Secondary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-gray-500 text-sm mb-2">Pending Orders</h3>
+          <p className="text-3xl font-bold text-orange-500">{stats.pendingOrders}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-gray-500 text-sm mb-2">Completed Orders</h3>
+          <p className="text-3xl font-bold text-green-500">{stats.completedOrders}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-gray-500 text-sm mb-2 flex items-center gap-2">
+            Low Stock Products
+            {stats.lowStockProducts > 0 && <AlertCircle className="w-4 h-4 text-red-500" />}
+          </h3>
+          <p className="text-3xl font-bold text-red-500">{stats.lowStockProducts}</p>
+        </div>
+      </div>
+
+      {/* Recent Orders */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b">
+          <h2 className="text-xl font-bold">Recent Orders</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {recentOrders.map((order) => (
+                <tr key={order.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">{order.order_number}</td>
+                  <td className="px-6 py-4">{order.customer?.name || 'N/A'}</td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {order.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">${order.final_amount.toFixed(2)}</td>
+                  <td className="px-6 py-4">{new Date(order.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
